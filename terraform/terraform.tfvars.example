@@ -1,0 +1,13 @@
+# Aiven API Token
+# Get this from: https://console.aiven.io/profile/tokens
+aiven_api_token = "your-aiven-api-token-here"
+
+# Aiven Project Name
+# The name of your Aiven project (visible in the console URL)
+aiven_project_name = "your-project-name"
+
+# PostgreSQL Service Name (optional, defaults to "kirc-pg")
+# pg_service_name = "kirc-pg"
+
+# Valkey Service Name (optional, defaults to "kirc-valkey")
+# valkey_service_name = "kirc-valkey"
