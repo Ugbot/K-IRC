@@ -1,0 +1,68 @@
+/* K-IRC Textual CSS */
+
+#main-container {
+    height: 1fr;
+}
+
+#sidebar {
+    width: 25;
+    border-right: solid $primary;
+    padding: 0 1;
+}
+
+#chat-area {
+    width: 1fr;
+    padding: 0 1;
+}
+
+.section-title {
+    text-style: bold;
+    color: $text;
+    background: $surface;
+    padding: 0 1;
+    margin: 1 0 0 0;
+}
+
+#channel-list {
+    height: auto;
+    max-height: 10;
+    margin: 0 0 1 0;
+}
+
+#channel-list > ListItem {
+    padding: 0 1;
+}
+
+#channel-list > ListItem:hover {
+    background: $primary 20%;
+}
+
+#status-bar {
+    height: auto;
+    margin: 0;
+}
+
+#connection-status {
+    color: $warning;
+    padding: 0 1;
+}
+
+#message-list {
+    height: 1fr;
+    border: solid $surface;
+    margin: 0 0 1 0;
+}
+
+#message-list > ListItem {
+    padding: 0 1;
+    height: auto;
+}
+
+ChatInput {
+    dock: bottom;
+    margin: 0;
+}
+
+ChatInput:focus {
+    border: tall $accent;
+}

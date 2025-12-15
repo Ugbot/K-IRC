@@ -63,6 +63,7 @@ Kafka serves as the actor's **mailbox**:
 ## Prerequisites
 
 - Python 3.11+
+- [uv](https://docs.astral.sh/uv/) (recommended) or pip
 - Terraform 1.0+
 - Free [Aiven](https://aiven.io) account
 
@@ -157,11 +158,14 @@ cp .env.example .env
 ### 7. Run K-IRC
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Install uv if you haven't already
+# curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Sync dependencies
+uv sync
 
 # Run the TUI
-python -m kirc
+uv run kirc
 ```
 
 ## Free Tier Limitations
@@ -194,31 +198,36 @@ python -m kirc
 
 ```
 K-IRC/
-├── terraform/           # Infrastructure as Code
-│   ├── main.tf          # Aiven provider config
-│   ├── variables.tf     # Input variables
-│   ├── postgresql.tf    # PostgreSQL free tier
-│   ├── valkey.tf        # Valkey free tier
-│   ├── outputs.tf       # Connection outputs
+├── terraform/              # Infrastructure as Code
+│   ├── main.tf             # Aiven provider config
+│   ├── variables.tf        # Input variables
+│   ├── postgresql.tf       # PostgreSQL free tier
+│   ├── valkey.tf           # Valkey free tier
+│   ├── outputs.tf          # Connection outputs
 │   └── terraform.tfvars.example
-├── kirc/                # Python application (TBD)
-│   ├── __main__.py
-│   ├── tui/             # Terminal UI
-│   ├── kafka/           # Kafka producer/consumer
-│   ├── db/              # PostgreSQL models
-│   ├── cache/           # Valkey/Redis client
-│   └── webrtc/          # WebRTC signaling
+├── src/kirc/               # Python application
+│   ├── __init__.py
+│   ├── __main__.py         # Entry point
+│   ├── app.py              # Main Textual App
+│   ├── config.py           # Settings management
+│   ├── kirc.tcss           # TUI stylesheet
+│   ├── tui/                # TUI components
+│   ├── kafka/              # Kafka producer/consumer
+│   ├── db/                 # PostgreSQL models
+│   └── cache/              # Valkey/Redis client
+├── tests/                  # Test suite
 ├── .env.example
-├── requirements.txt
+├── pyproject.toml          # Project configuration
 └── README.md
 ```
 
 ## Development Roadmap
 
 - [x] Infrastructure setup (Terraform + Console guide)
-- [ ] Kafka producer/consumer client
-- [ ] PostgreSQL schema and models
-- [ ] TUI framework (Textual/Rich)
+- [x] TUI framework (Textual)
+- [ ] Kafka producer/consumer client (aiokafka)
+- [ ] PostgreSQL schema and models (asyncpg)
+- [ ] Valkey pub/sub client (redis-py async)
 - [ ] User profile management
 - [ ] Message sending/receiving
 - [ ] WebRTC signaling via Kafka
