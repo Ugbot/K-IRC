@@ -2,6 +2,12 @@
 
 A Python-based TUI chat and social media tool built on the Actor Model pattern, using Apache Kafka as the message backbone and WebRTC for real-time communication.
 
+## Why K-IRC?
+
+This project was born out of a simple realization: **Aiven now offers a free tier for Apache Kafka**, completing the trifecta alongside their existing free PostgreSQL and Valkey (Redis) services.
+
+I wanted to build a serious, distributed application that leverages this entire free stack to its limit—demonstrating how to build a secure, P2P-style network using managed cloud primitives without spending a dime.
+
 ## Concept
 
 K-IRC treats each user as an **actor** with their own infrastructure:
