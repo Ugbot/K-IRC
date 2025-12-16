@@ -27,6 +27,8 @@ class CacheClient:
         self._presence_handlers: list[Callable[[str, str], Any]] = []
         self._typing_handlers: list[Callable[[str, str, bool], Any]] = []
         self._notification_handlers: list[Callable[[dict], Any]] = []
+        self._rotation_handlers: list[Callable[[dict], Any]] = []
+        self._channel_event_handlers: list[Callable[[str, dict], Any]] = []
 
     async def connect(self) -> None:
         """Connect to Valkey/Redis."""
@@ -201,6 +203,181 @@ class CacheClient:
 
         await self._client.delete(f"cache:{self._username}:{key}")
 
+    # Channel Leadership
+    async def register_channel_leader(self, channel: str, ttl_seconds: int = 300) -> bool:
+        """Try to register as the leader for a channel. Returns True if successful."""
+        if not self._client:
+            raise RuntimeError("Cache client not connected")
+
+        key = f"channel:{channel}:leader"
+        # NX=True means only set if not exists
+        success = await self._client.set(key, self._username, ex=ttl_seconds, nx=True)
+        
+        # If we are already the leader, refresh TTL
+        if not success:
+            current_leader = await self._client.get(key)
+            if current_leader and current_leader.decode() == self._username:
+                await self._client.expire(key, ttl_seconds)
+                return True
+        
+        return bool(success)
+
+    async def get_channel_leader(self, channel: str) -> str | None:
+        """Get the current leader of a channel."""
+        if not self._client:
+            raise RuntimeError("Cache client not connected")
+
+        key = f"channel:{channel}:leader"
+        leader = await self._client.get(key)
+        return leader.decode() if leader else None
+
+    async def resign_channel_leader(self, channel: str) -> None:
+        """Resign leadership of a channel."""
+        if not self._client:
+            raise RuntimeError("Cache client not connected")
+
+        key = f"channel:{channel}:leader"
+        # Only delete if we are the leader
+        current_leader = await self._client.get(key)
+        if current_leader and current_leader.decode() == self._username:
+            await self._client.delete(key)
+
+    # Channel Keys (Symmetric Encryption)
+    async def set_channel_key_for_user(self, channel: str, username: str, encrypted_key: bytes, ttl_seconds: int = 86400) -> None:
+        """Store an encrypted channel key for a specific user."""
+        if not self._client:
+            raise RuntimeError("Cache client not connected")
+            
+        key = f"channel:{channel}:keys"
+        # We use a hash where field is username and value is the encrypted key
+        # But to support TTL, maybe we should use separate keys?
+        # Redis Hashes don't support TTL per field.
+        # So let's use `channel:{channel}:key:{username}`
+        
+        user_key_path = f"channel:{channel}:key:{username}"
+        await self._client.setex(user_key_path, ttl_seconds, encrypted_key)
+
+    async def get_channel_key(self, channel: str) -> bytes | None:
+        """Get the encrypted channel key for the current user."""
+        if not self._client:
+            raise RuntimeError("Cache client not connected")
+            
+        user_key_path = f"channel:{channel}:key:{self._username}"
+        key_data = await self._client.get(user_key_path)
+        return key_data
+
+    # Key Rotation Signaling
+    async def publish_key_rotation(self, channel: str, key_id: str, start_message_id: str | None = None) -> None:
+        """Signal that a key rotation has occurred."""
+        if not self._client:
+            raise RuntimeError("Cache client not connected")
+
+        await self._client.publish(
+            f"rotation:{channel}",
+            msgpack.packb({
+                "channel": channel,
+                "key_id": key_id,
+                "start_message_id": start_message_id,
+                "timestamp": 0  # TODO: Real timestamp
+            })
+        )
+
+    def on_key_rotation(self, handler: Callable[[dict], Any]) -> None:
+        """Register handler for key rotation signals."""
+        self._rotation_handlers.append(handler)
+
+    async def subscribe_rotation(self, channel: str) -> None:
+        """Subscribe to rotation signals for a channel."""
+        if not self._pubsub:
+            raise RuntimeError("Cache client not connected")
+        await self._pubsub.subscribe(f"rotation:{channel}")
+
+    # Channel Status & Events
+    async def set_channel_status(self, channel: str, status: dict, ttl_seconds: int = 300) -> None:
+        """Set channel status metadata."""
+        if not self._client:
+            raise RuntimeError("Cache client not connected")
+
+        key = f"channel:{channel}:status"
+        # Store as hash for easier field updates if needed, or just msgpack blob
+        # Using msgpack blob for simplicity with setex
+        await self._client.setex(key, ttl_seconds, msgpack.packb(status))
+
+    async def get_channel_status(self, channel: str) -> dict | None:
+        """Get channel status metadata."""
+        if not self._client:
+            raise RuntimeError("Cache client not connected")
+
+        key = f"channel:{channel}:status"
+        data = await self._client.get(key)
+        if data:
+            return msgpack.unpackb(data, raw=False)
+        return None
+
+    async def publish_channel_event(self, channel: str, event_type: str, payload: dict) -> None:
+        """Publish a generic event to the channel's control plane."""
+        if not self._client:
+            raise RuntimeError("Cache client not connected")
+
+        await self._client.publish(
+            f"channel:{channel}:events",
+            msgpack.packb({
+                "type": event_type,
+                "payload": payload,
+                "sender": self._username
+            })
+        )
+
+    async def subscribe_channel_events(self, channel: str) -> None:
+        """Subscribe to channel control plane events."""
+        if not self._pubsub:
+            raise RuntimeError("Cache client not connected")
+        await self._pubsub.subscribe(f"channel:{channel}:events")
+
+    def on_channel_event(self, handler: Callable[[str, dict], Any]) -> None:
+        """Register handler for channel events. Handler receives (channel, event_data)."""
+        self._channel_event_handlers.append(handler)
+
+    # Channel Membership
+    async def join_channel(self, channel: str) -> None:
+        """Join a channel (add self to members set)."""
+        if not self._client:
+            raise RuntimeError("Cache client not connected")
+        
+        key = f"channel:{channel}:members"
+        await self._client.sadd(key, self._username)
+        # Publish join event
+        await self.publish_channel_event(channel, "join", {"username": self._username})
+
+    async def leave_channel(self, channel: str) -> None:
+        """Leave a channel (remove self from members set)."""
+        if not self._client:
+            raise RuntimeError("Cache client not connected")
+            
+        key = f"channel:{channel}:members"
+        await self._client.srem(key, self._username)
+        # Publish leave event
+        await self.publish_channel_event(channel, "leave", {"username": self._username})
+
+    async def get_channel_members(self, channel: str) -> list[str]:
+        """Get all members of a channel."""
+        if not self._client:
+            raise RuntimeError("Cache client not connected")
+            
+        key = f"channel:{channel}:members"
+        members = await self._client.smembers(key)
+        return [m.decode() for m in members]
+
+    async def kick_member(self, channel: str, username: str) -> None:
+        """Kick a member from the channel (Leader only)."""
+        if not self._client:
+            raise RuntimeError("Cache client not connected")
+            
+        key = f"channel:{channel}:members"
+        await self._client.srem(key, username)
+        # Publish kick event
+        await self.publish_channel_event(channel, "kick", {"username": username})
+
     # Pub/Sub message loop
     async def _handle_message(self, message: dict) -> None:
         """Handle incoming pub/sub message."""
@@ -228,17 +405,36 @@ class CacheClient:
                     print(f"Error in presence handler: {e}")
 
         elif channel.startswith("typing:"):
+            # typing:{channel}
+            chan_name = channel.split(":")[1]
+            user, is_typing = data.split(":")
             for handler in self._typing_handlers:
-                try:
-                    result = handler(
-                        data.get("channel"),
-                        data.get("username"),
-                        data.get("is_typing", False),
-                    )
-                    if asyncio.iscoroutine(result):
-                        await result
-                except Exception as e:
-                    print(f"Error in typing handler: {e}")
+                if asyncio.iscoroutinefunction(handler):
+                    await handler(chan_name, user, is_typing == "1")
+                else:
+                    handler(chan_name, user, is_typing == "1")
+                    
+        elif channel.startswith("rotation:"):
+            # rotation:{channel}
+            payload = msgpack.unpackb(data)
+            for handler in self._rotation_handlers:
+                if asyncio.iscoroutinefunction(handler):
+                    await handler(payload)
+                else:
+                    handler(payload)
+
+        elif "events" in channel and channel.startswith("channel:"):
+            # channel:{channel}:events
+            # Extract channel name: channel:NAME:events
+            parts = channel.split(":")
+            if len(parts) >= 3:
+                chan_name = parts[1]
+                payload = msgpack.unpackb(data)
+                for handler in self._channel_event_handlers:
+                    if asyncio.iscoroutinefunction(handler):
+                        await handler(chan_name, payload)
+                    else:
+                        handler(chan_name, payload)
 
         elif channel.startswith("notify:"):
             for handler in self._notification_handlers:

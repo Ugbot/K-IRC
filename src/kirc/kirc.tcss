@@ -1,56 +1,95 @@
-/* K-IRC Textual CSS */
+/* K-IRC Cyberpunk Theme */
+
+$background: #050505;
+$surface: #121212;
+$custom-panel: #1a1a1a;
+
+$neon-cyan: #00f3ff;
+$neon-pink: #ff00ff;
+$neon-green: #00ff00;
+$neon-yellow: #ffee00;
+$neon-red: #ff0055;
+
+$text-main: #e0e0e0;
+$text-dim: #808080;
+
+Screen {
+    background: $background;
+    color: $text-main;
+}
 
 #main-container {
     height: 1fr;
+    background: $background;
 }
 
+/* Sidebar Styling */
 #sidebar {
-    width: 25;
-    border-right: solid $primary;
-    padding: 0 1;
-}
-
-#chat-area {
-    width: 1fr;
+    width: 30;
+    dock: left;
+    height: 100%;
+    background: $surface;
+    border-right: heavy $neon-cyan;
     padding: 0 1;
 }
 
 .section-title {
     text-style: bold;
-    color: $text;
-    background: $surface;
+    color: $background;
+    background: $neon-pink;
     padding: 0 1;
     margin: 1 0 0 0;
+    border-bottom: heavy $neon-pink;
 }
 
 #channel-list {
     height: auto;
-    max-height: 10;
+    max-height: 50%;
     margin: 0 0 1 0;
+    background: $surface;
+    scrollbar-color: $neon-cyan;
 }
 
 #channel-list > ListItem {
     padding: 0 1;
+    color: $neon-cyan;
 }
 
 #channel-list > ListItem:hover {
-    background: $primary 20%;
+    background: $neon-cyan;
+    color: $background;
+    text-style: bold;
 }
 
+/* Status Bar in Sidebar */
 #status-bar {
+    dock: bottom;
     height: auto;
-    margin: 0;
+    margin: 1 0;
+    border-top: dashed $text-dim;
+    padding: 1 0;
 }
 
 #connection-status {
-    color: $warning;
-    padding: 0 1;
+    color: $neon-yellow;
+    text-style: bold;
+}
+
+/* Chat Area Styling */
+#chat-area {
+    width: 1fr;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background: $background;
 }
 
 #message-list {
     height: 1fr;
-    border: solid $surface;
-    margin: 0 0 1 0;
+    border: heavy $neon-green;
+    margin: 0 1;
+    background: $background;
+    scrollbar-color: $neon-green;
 }
 
 #message-list > ListItem {
@@ -58,11 +97,106 @@
     height: auto;
 }
 
+/* Input Styling */
 ChatInput {
     dock: bottom;
-    margin: 0;
+    margin: 0 1 1 1;
+    border: heavy $neon-pink;
+    background: $surface;
+    color: $neon-cyan;
 }
 
 ChatInput:focus {
-    border: tall $accent;
+    border: heavy $neon-cyan;
+    background: $custom-panel;
+}
+
+ChatInput > .input--placeholder {
+    color: $text-dim;
+    text-style: italic;
+}
+
+/* Header & Footer */
+Header {
+    dock: top;
+    height: 3;
+    content-align: center middle;
+    background: $surface;
+    color: $neon-pink;
+    text-style: bold;
+    border-bottom: double $neon-cyan;
+}
+
+Footer {
+    background: $surface;
+    color: $neon-green;
+}
+
+/* DM List Styling */
+#dm-list {
+    height: auto;
+    max-height: 50%;
+    margin: 0 0 1 0;
+    background: $surface;
+    scrollbar-color: $neon-cyan;
+}
+
+#dm-list > ListItem {
+    padding: 0 1;
+    color: $neon-cyan;
+}
+
+#dm-list > ListItem:hover {
+    background: $neon-cyan;
+    color: $background;
+    text-style: bold;
+}
+
+/* Chat Message Styling */
+ChatMessage {
+    layout: vertical;
+    background: $background;
+    margin: 1 0;
+    padding: 0 1;
+}
+
+.message-header {
+    height: 1;
+    width: 100%;
+    background: $surface;
+    color: $neon-pink;
+    padding: 0 1;
+}
+
+.message-sender {
+    text-style: bold;
+    color: $neon-pink;
+    margin-right: 1;
+}
+
+.message-time {
+    color: $text-dim;
+    text-style: italic;
+}
+
+.message-content {
+    padding: 0 1;
+    color: $text-main;
+}
+
+/* Sidebar Item Styling */
+.channel-name {
+    padding: 0 1;
+}
+
+.dm-name {
+    padding: 0 1;
+}
+
+.dm-name.green {
+    color: $neon-green;
+}
+
+.dm-name.red {
+    color: $neon-red;
 }

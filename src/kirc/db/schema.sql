@@ -55,7 +55,7 @@ CREATE INDEX idx_contacts_blocked ON contacts(is_blocked);
 
 -- Message history (long-term storage)
 CREATE TABLE IF NOT EXISTS messages (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id BIGINT PRIMARY KEY,
     message_type VARCHAR(50) NOT NULL,  -- chat, direct, broadcast, etc.
     sender VARCHAR(255) NOT NULL,
     recipient VARCHAR(255),

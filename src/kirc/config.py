@@ -9,7 +9,7 @@ class KafkaSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="KAFKA_")
 
-    bootstrap_servers: str = Field(description="Kafka bootstrap servers")
+    bootstrap_servers: str = Field(default="localhost:9092", description="Kafka bootstrap servers")
     security_protocol: str = Field(default="SSL", description="Security protocol")
     ssl_cafile: str = Field(default="./certs/kafka_ca.pem", description="CA certificate path")
     ssl_certfile: str = Field(
@@ -28,7 +28,7 @@ class PostgresSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="POSTGRES_")
 
-    uri: str = Field(description="PostgreSQL connection URI")
+    uri: str = Field(default="postgresql://user:pass@localhost:5432/kirc", description="PostgreSQL connection URI")
 
 
 class ValkeySettings(BaseSettings):
@@ -36,7 +36,7 @@ class ValkeySettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="VALKEY_")
 
-    uri: str = Field(description="Valkey connection URI")
+    uri: str = Field(default="redis://localhost:6379", description="Valkey connection URI")
 
 
 class UserSettings(BaseSettings):
@@ -44,8 +44,8 @@ class UserSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="KIRC_")
 
-    username: str = Field(description="Unique username")
-    display_name: str = Field(default="", description="Display name")
+    username: str = Field(default="guest", description="Unique username")
+    display_name: str = Field(default="Guest User", description="Display name")
 
 
 class Settings(BaseSettings):
@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     kafka: KafkaSettings = Field(default_factory=KafkaSettings)
     postgres: PostgresSettings = Field(default_factory=PostgresSettings)
     valkey: ValkeySettings = Field(default_factory=ValkeySettings)
-    user: UserSettings = Field(default_factory=UserSettings)
+    user_config: UserSettings = Field(default_factory=UserSettings)
 
 
 def load_settings() -> Settings:

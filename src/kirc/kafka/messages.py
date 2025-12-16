@@ -46,12 +46,18 @@ class MessageType(str, Enum):
     PRESENCE = "presence"
     TYPING = "typing"
     ACK = "ack"
+    FETCH_HISTORY = "fetch_history"
+    HISTORY_DATA = "history_data"
+    CHANNEL_KEY_UPDATE = "channel_key_update"
 
+
+from kirc.utils import generate_snowflake_id
 
 class Message(BaseModel):
     """Base message structure for all Kafka messages."""
 
-    id: UUID = Field(default_factory=uuid4)
+    id: int = Field(default_factory=generate_snowflake_id)
+    correlation_id: UUID | None = Field(default=None, description="ID for RPC request-response correlation")
     type: MessageType
     sender: str = Field(description="Sender's username")
     recipient: str | None = Field(

@@ -52,6 +52,17 @@ class UserProfile(BaseModel):
     updated_at: datetime
 
 
+class SharedCredential(BaseModel):
+    """Shared credential model for encrypted service access."""
+    
+    id: UUID
+    service_type: ServiceType
+    encrypted_data: str = Field(description="Base64 encoded encrypted connection string")
+    owner_id: str = Field(description="Username of the owner")
+    recipient_id: str = Field(description="Username of the recipient")
+    created_at: datetime
+
+
 class Contact(BaseModel):
     """A contact/peer in the user's contact list."""
 
@@ -70,7 +81,7 @@ class Contact(BaseModel):
 class Message(BaseModel):
     """Persisted message for long-term storage."""
 
-    id: UUID
+    id: int
     message_type: str = Field(description="chat, direct, broadcast, etc.")
     sender: str
     recipient: str | None = None

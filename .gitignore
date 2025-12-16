@@ -229,3 +229,6 @@ service.key
 service.cert
 aiven-credentials.json
 certs/
+id_rsa.pub
+id_rsa.pem
+.env.*

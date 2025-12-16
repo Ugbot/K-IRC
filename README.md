@@ -221,6 +221,43 @@ K-IRC/
 └── README.md
 ```
 
+## Architecture & Data Flow
+
+K-IRC uses a hybrid P2P/Client-Server model where nodes (users) communicate via a shared Kafka cluster and Redis instance, but manage their own identity and encryption keys locally.
+
+### 1. Identity & Discovery (The "Handshake")
+Before two users can chat securely, they must exchange credentials and public keys.
+1.  **Out-of-Band**: Alice shares her **Public Key** with Bob (e.g., via email/DM).
+2.  **Invite Generation**: Bob uses Alice's Public Key to encrypt a bundle containing his **Identity** (Username, Public Key) and **Service Config** (Kafka/Redis endpoints).
+3.  **Acceptance**: Alice receives the encrypted bundle, decrypts it with her Private Key, and adds Bob to her local **Contacts Database**.
+4.  **Mutual Link**: Alice repeats the process for Bob, ensuring both have each other's Public Keys.
+
+### 2. Channel Leadership (Redis Signaling)
+Channels are ephemeral and leader-moderated.
+1.  **Claiming Leadership**: When Alice joins `#NET_RUNNERS`, she checks Redis for a leader. If none exists, she registers herself as **Leader** (`channel:NET_RUNNERS:leader`).
+2.  **Membership**: Users joining the channel add themselves to the Redis Set `channel:NET_RUNNERS:members`.
+3.  **Events**: The Leader publishes events (Join/Leave/Kick) to `channel:NET_RUNNERS:events` so all connected clients can update their UI.
+
+### 3. Secure Messaging (Kafka + Symmetric Encryption)
+Messages are encrypted with a symmetric key (Fernet) specific to the channel and key version.
+1.  **Key Generation**: The Leader generates a random Symmetric Key and a unique `KeyID`.
+2.  **Distribution (RPC)**: The Leader iterates through the **Channel Members** list. For each member (e.g., Bob), the Leader:
+    *   Encrypts the Symmetric Key with Bob's **Public Key**.
+    *   Sends it via Kafka to `rpc-in-bob` with type `channel_key_update`.
+3.  **Encryption**: When Alice sends a message:
+    *   She encrypts the content with the current Symmetric Key.
+    *   She attaches the `KeyID` to the message payload.
+    *   She sends the message to the Leader's Inbox (`inbox-alice` -> Leader).
+4.  **Relay**: The Leader receives the message, verifies it, and **re-broadcasts** it to the channel's output topic (`out-alice`).
+5.  **Decryption**: Bob receives the message from `out-alice`, looks up the key by `KeyID`, and decrypts the content.
+
+### 4. Key Rotation (The "Kick")
+To remove a user (e.g., Eve) from the channel:
+1.  The Leader generates a **New Symmetric Key** and `NewKeyID`.
+2.  The Leader distributes this new key via RPC to all members **except Eve**.
+3.  The Leader signals "Rotation" via Redis.
+4.  Future messages are encrypted with the New Key. Eve, lacking this key, receives only encrypted gibberish.
+
 ## Development Roadmap
 
 - [x] Infrastructure setup (Terraform + Console guide)

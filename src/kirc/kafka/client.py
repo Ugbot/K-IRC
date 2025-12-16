@@ -49,6 +49,7 @@ class KafkaClient:
         self._running = False
         self._message_handlers: list[Callable[[Message], Any]] = []
         self._rpc_handlers: list[Callable[[Message], Any]] = []
+        self._pending_requests: dict[str, asyncio.Future] = {}
 
     def _create_ssl_context(
         self,
@@ -71,6 +72,7 @@ class KafkaClient:
         )
         await self._producer.start()
 
+        # Main consumer for our own inbox
         self._consumer_data = AIOKafkaConsumer(
             self.topic_data_in,
             bootstrap_servers=self.bootstrap_servers,
@@ -92,6 +94,35 @@ class KafkaClient:
         await self._consumer_rpc.start()
 
         self._running = True
+
+    async def subscribe_to_topic(self, topic: str) -> None:
+        """Subscribe to an additional topic (e.g., a channel leader's output)."""
+        if not self._consumer_data:
+            raise RuntimeError("Kafka client not connected")
+        
+        # AIOKafkaConsumer.subscribe replaces the subscription, so we need to track all topics
+        # But AIOKafkaConsumer also supports pattern subscription or adding partitions manually.
+        # However, the simplest way with the high-level consumer is to update the subscription list.
+        # Note: This might trigger a rebalance.
+        
+        current_topics = self._consumer_data.subscription() or set()
+        if topic not in current_topics:
+            new_topics = set(current_topics)
+            new_topics.add(topic)
+            self._consumer_data.subscribe(topics=list(new_topics))
+
+    async def unsubscribe_from_topic(self, topic: str) -> None:
+        """Unsubscribe from a topic."""
+        if not self._consumer_data:
+            raise RuntimeError("Kafka client not connected")
+            
+        current_topics = self._consumer_data.subscription() or set()
+        if topic in current_topics:
+            new_topics = set(current_topics)
+            new_topics.remove(topic)
+            # If no topics left, we can't pass empty list to subscribe usually, but let's see.
+            # We always keep self.topic_data_in, so it should be fine.
+            self._consumer_data.subscribe(topics=list(new_topics))
 
     async def disconnect(self) -> None:
         """Disconnect from Kafka."""
@@ -117,27 +148,45 @@ class KafkaClient:
         """Register a handler for incoming RPC messages."""
         self._rpc_handlers.append(handler)
 
-    async def send_message(self, message: Message) -> None:
-        """Send a message to the data-out topic."""
+    async def send_message(self, message: Message, topic: str | None = None) -> None:
+        """Send a message. If topic is None, sends to our own data-out."""
         if not self._producer:
             raise RuntimeError("Kafka client not connected")
 
+        target_topic = topic or self.topic_data_out
+        
         await self._producer.send_and_wait(
-            self.topic_data_out,
+            target_topic,
             value=message.to_bytes(),
             key=message.sender.encode("utf-8"),
         )
 
-    async def send_rpc(self, message: Message) -> None:
-        """Send an RPC message to the rpc-out topic."""
+    async def send_rpc(self, message: Message, topic: str | None = None) -> None:
+        """Send an RPC message."""
         if not self._producer:
             raise RuntimeError("Kafka client not connected")
 
+        target_topic = topic or self.topic_rpc_out
+
         await self._producer.send_and_wait(
-            self.topic_rpc_out,
+            target_topic,
             value=message.to_bytes(),
             key=message.sender.encode("utf-8"),
         )
+
+    async def request(self, message: Message, topic: str | None = None, timeout: float = 10.0) -> Message:
+        """Send an RPC request and wait for a response."""
+        if not message.correlation_id:
+            message.correlation_id = uuid4()
+        
+        future = asyncio.Future()
+        self._pending_requests[str(message.correlation_id)] = future
+        
+        try:
+            await self.send_rpc(message, topic)
+            return await asyncio.wait_for(future, timeout)
+        finally:
+            self._pending_requests.pop(str(message.correlation_id), None)
 
     async def _consume_data(self) -> AsyncIterator[Message]:
         """Consume messages from data-in topic."""
@@ -182,6 +231,15 @@ class KafkaClient:
         async for message in self._consume_rpc():
             if not self._running:
                 break
+            
+            # Check if this is a response to a pending request
+            if message.correlation_id and str(message.correlation_id) in self._pending_requests:
+                future = self._pending_requests[str(message.correlation_id)]
+                if not future.done():
+                    future.set_result(message)
+                continue
+
+            # Otherwise, dispatch to handlers
             for handler in self._rpc_handlers:
                 try:
                     result = handler(message)
