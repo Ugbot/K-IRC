@@ -258,18 +258,37 @@ To remove a user (e.g., Eve) from the channel:
 3.  The Leader signals "Rotation" via Redis.
 4.  Future messages are encrypted with the New Key. Eve, lacking this key, receives only encrypted gibberish.
 
+### 5. Redis (Valkey) Data Structure
+Redis is used as a shared state cache and control plane.
+
+**Keys:**
+- `channel:{name}:leader` (String): Username of the current leader. TTL 30s (heartbeat).
+- `channel:{name}:members` (Set): Set of usernames currently in the channel.
+- `channel:{name}:status` (Hash): Metadata about the channel (topic, mode, etc).
+- `rotation:{name}` (Pub/Sub): Signal channel for key rotation events.
+- `channel:{name}:events` (Pub/Sub): Event stream for Join/Leave/Kick notifications.
+
+### 6. PostgreSQL Schema
+Each user maintains their own local PostgreSQL database for persistence.
+
+**Tables:**
+- `contacts`: Stores known peers (Username, Public Key, Kafka Bootstrap Servers).
+- `messages`: Stores chat history (Sender, Content, Timestamp, Channel, KeyID).
+- `credentials`: Stores encrypted service credentials for other nodes.
+
 ## Development Roadmap
 
 - [x] Infrastructure setup (Terraform + Console guide)
 - [x] TUI framework (Textual)
-- [ ] Kafka producer/consumer client (aiokafka)
-- [ ] PostgreSQL schema and models (asyncpg)
-- [ ] Valkey pub/sub client (redis-py async)
-- [ ] User profile management
-- [ ] Message sending/receiving
+- [x] Kafka producer/consumer client (aiokafka)
+- [x] PostgreSQL schema and models (asyncpg)
+- [x] Valkey pub/sub client (redis-py async)
+- [x] User profile management
+- [x] Message sending/receiving
+- [x] Secure Channel Leadership & Key Rotation
+- [x] P2P Invite System
 - [ ] WebRTC signaling via Kafka
-- [ ] Presence and typing indicators
-- [ ] Contact discovery
+- [ ] File Transfer
 
 ## License
 
