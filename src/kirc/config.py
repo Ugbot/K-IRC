@@ -1,51 +1,41 @@
 """Configuration management using pydantic-settings."""
 
-from pydantic import Field
+from pydantic import Field, BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class KafkaSettings(BaseSettings):
+class KafkaSettings(BaseModel):
     """Kafka connection settings."""
+    bootstrap_servers: str = "localhost:9092"
+    security_protocol: str = "SASL_SSL"
+    sasl_mechanism: str = "SCRAM-SHA-256"
+    sasl_plain_username: str | None = None
+    sasl_plain_password: str | None = None
+    ssl_cafile: str = "./certs/ca.pem"
+    ssl_certfile: str | None = None
+    ssl_keyfile: str | None = None
 
-    model_config = SettingsConfigDict(env_prefix="KAFKA_")
-
-    bootstrap_servers: str = Field(default="localhost:9092", description="Kafka bootstrap servers")
-    security_protocol: str = Field(default="SSL", description="Security protocol")
-    ssl_cafile: str = Field(default="./certs/kafka_ca.pem", description="CA certificate path")
-    ssl_certfile: str = Field(
-        default="./certs/kafka_service.cert", description="Client certificate path"
-    )
-    ssl_keyfile: str = Field(default="./certs/kafka_service.key", description="Client key path")
-
-    topic_data_in: str = Field(default="data-in", description="Incoming data topic")
-    topic_data_out: str = Field(default="data-out", description="Outgoing data topic")
-    topic_rpc_in: str = Field(default="rpc-in", description="Incoming RPC topic")
-    topic_rpc_out: str = Field(default="rpc-out", description="Outgoing RPC topic")
+    topic_data_in: str = "data-in"
+    topic_data_out: str = "data-out"
+    topic_rpc_in: str = "rpc-in"
+    topic_rpc_out: str = "rpc-out"
 
 
-class PostgresSettings(BaseSettings):
+class PostgresSettings(BaseModel):
     """PostgreSQL connection settings."""
-
-    model_config = SettingsConfigDict(env_prefix="POSTGRES_")
-
-    uri: str = Field(default="postgresql://user:pass@localhost:5432/kirc", description="PostgreSQL connection URI")
+    uri: str = "postgresql://user:pass@localhost:5432/kirc"
 
 
-class ValkeySettings(BaseSettings):
+class ValkeySettings(BaseModel):
     """Valkey/Redis connection settings."""
-
-    model_config = SettingsConfigDict(env_prefix="VALKEY_")
-
-    uri: str = Field(default="redis://localhost:6379", description="Valkey connection URI")
+    uri: str = "redis://localhost:6379"
 
 
-class UserSettings(BaseSettings):
+class UserSettings(BaseModel):
     """User profile settings."""
-
-    model_config = SettingsConfigDict(env_prefix="KIRC_")
-
-    username: str = Field(default="guest", description="Unique username")
-    display_name: str = Field(default="Guest User", description="Display name")
+    username: str = "guest"
+    display_name: str = "Guest User"
+    private_key_path: str = "id_rsa.pem"
 
 
 class Settings(BaseSettings):
@@ -54,6 +44,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
+        env_nested_delimiter="__",
         extra="ignore",
     )
 

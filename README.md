@@ -1,16 +1,32 @@
-# K-IRC: Kafka Relay Chat
+# 🟢 K-IRC: [K]AFKA [I]NTERFACE [R]ELAY [C]ONSOLE
 
-A Python-based TUI chat and social media tool built on the Actor Model pattern, using Apache Kafka as the message backbone and WebRTC for real-time communication.
+```text
+      _  __     ___ ____   ____ 
+     | |/ /    |_ _|  _ \ / ___|
+     | ' /_____ | || |_) | |    
+     | . \_____|| ||  _ <| |___ 
+     |_|\_\    |___|_| \_\\____|
+```
 
-## Why K-IRC?
+> **DECRYPTION COMPLETE...**
+> **UPLINK STATUS:** STABLE
+> **PROTOCOL:** DECENTRALIZED ACTOR MODEL
+> **ENCRYPTION:** PGP-ARMORED RSA-2048
 
-This project was born out of a simple realization: **Aiven now offers a free tier for Apache Kafka**, completing the trifecta alongside their existing free PostgreSQL and Valkey (Redis) services.
+The mega-corps own the web, but the grid belongs to the Netrunners. **K-IRC** is a high-fidelity terminal interface architected on the **Decentralized Actor Model**, turning every user into a self-sovereign node. No central server. No prying eyes. Just you, your mailbox, and the terminal.
 
-I wanted to build a serious, distributed application that leverages this entire free stack to its limit—demonstrating how to build a secure, P2P-style network using managed cloud primitives without spending a dime.
+## ⚡ The Aiven Trifecta
 
-## Concept
+The grid has shifted. **Aiven now offers a free tier for Apache Kafka**, completing the legendary trifecta for the modern Netrunner:
+1. **Kafka:** Your asynchronous mailbox in the clouds.
+2. **PostgreSQL:** The persistent memory core of your identity.
+3. **Valkey:** The high-speed kinetic cache for real-time presence.
 
-K-IRC treats each user as an **actor** with their own infrastructure:
+K-IRC isn't just a chat app; it's a demonstration of distributed systems, end-to-end encryption, and the power of the free cloud.
+
+## 🧠 The Concept: Every Node is an Actor
+
+In K-IRC, you aren't just a user—you are an **Infrastructure Actor**.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -73,105 +89,55 @@ Kafka serves as the actor's **mailbox**:
 - Terraform 1.0+
 - Free [Aiven](https://aiven.io) account
 
-## Quick Start
+## 🚀 Rapid Deployment
 
-### 1. Fork and Clone
+Forget manual `.env` hackery. K-IRC comes with a built-in **INITIALIZATION_SEQUENCE** (Setup Wizard) to get you on the grid in minutes.
+
+### 1. Zero to One
 
 ```bash
+# Clone the encrypted archives
 git clone https://github.com/YOUR_USERNAME/K-IRC.git
 cd K-IRC
+
+# Install the neuro-link tools
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv sync
 ```
 
-### 2. Create Aiven Account
+### 2. Secure Your Infrastructure
 
-1. Sign up at [console.aiven.io](https://console.aiven.io)
-2. Create a new project (or use default)
-3. Generate an API token: Profile → Tokens → Generate Token
+1. **Aiven Account:** Sign up at [console.aiven.io](https://console.aiven.io).
+2. **Kafka:** Create a free `Apache Kafka` service. Enable **SASL** and download `ca.pem` to `certs/`.
+3. **PostgreSQL:** Create a free `PostgreSQL` service.
+4. **Valkey:** Create a free `Valkey` service.
 
-### 3. Set Up Kafka (Console - Required)
+### 3. Initiate Sequence
 
-The Kafka free tier must be created via the Aiven Console (no Terraform support yet):
-
-1. Go to [console.aiven.io](https://console.aiven.io)
-2. Click **Create Service** → **Apache Kafka**
-3. Select **Free** plan
-4. Choose available region (limited options on free tier)
-5. Name it `kirc-kafka` (or your preference)
-6. Click **Create Service**
-
-Once created, add the 4 required topics:
-
-1. Go to your Kafka service → **Topics**
-2. Create each topic with **2 partitions**:
-   - `data-in`
-   - `data-out`
-   - `rpc-in`
-   - `rpc-out`
-
-Download credentials:
-1. Go to **Overview** → **Connection information**
-2. Download the CA certificate (`ca.pem`)
-3. Note the Service URI, username, and password
-
-### 4. Set Up PostgreSQL + Valkey (Terraform)
+Launch the app and follow the on-screen prompts. The Wizard will establish your RSA identity and link your Aiven services.
 
 ```bash
+uv run kirc
+```
+
+> [!TIP]
+> Have your Aiven service URIs and SASL credentials ready. The Wizard will persist them to a secure `.env` file for you.
+
+## 🛠️ Internal Systems
+
+If you prefer the manual route or need to debug the matrix:
+
+### Terraform Provisioning
+For PostgreSQL and Valkey, you can use the provided infrastructure scripts:
+```bash
 cd terraform
-
-# Copy example vars and edit with your values
-cp terraform.tfvars.example terraform.tfvars
-
-# Edit terraform.tfvars with your Aiven API token and project name
-# Get token from: https://console.aiven.io/profile/tokens
-
-# Initialize and apply
-terraform init
-terraform plan
+cp terraform.tfvars.example terraform.tfvars # Insert API Token
 terraform apply
 ```
 
-### 5. Get Connection Details
-
-After Terraform completes:
-
+### DB Initialization
 ```bash
-# View PostgreSQL connection info
-terraform output pg_host
-terraform output pg_port
-terraform output pg_database
-
-# View Valkey connection info
-terraform output valkey_host
-terraform output valkey_port
-
-# View sensitive values
-terraform output -raw pg_service_uri
-terraform output -raw pg_password
-terraform output -raw pg_ca_cert > pg_ca.pem
-
-terraform output -raw valkey_service_uri
-terraform output -raw valkey_password
-```
-
-### 6. Configure K-IRC
-
-```bash
-cd ..
-cp .env.example .env
-# Edit .env with your Kafka and PostgreSQL connection details
-```
-
-### 7. Run K-IRC
-
-```bash
-# Install uv if you haven't already
-# curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Sync dependencies
-uv sync
-
-# Run the TUI
-uv run kirc
+uv run python scripts/setup_infra.py
 ```
 
 ## Free Tier Limitations
@@ -288,7 +254,7 @@ Each user maintains their own local PostgreSQL database for persistence.
 - [x] TUI framework (Textual)
 - [x] Kafka producer/consumer client (aiokafka)
 - [x] PostgreSQL schema and models (asyncpg)
-- [x] Valkey pub/sub client (redis-py async)
+- [x] Valkey pub/sub client (valkey-py async)
 - [x] User profile management
 - [x] Message sending/receiving
 - [x] Secure Channel Leadership & Key Rotation

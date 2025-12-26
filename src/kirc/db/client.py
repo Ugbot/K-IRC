@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 import asyncpg
 import msgpack
 
-from kirc.db.models import Contact, Message, ServiceConfig, ServiceType, UserProfile
+from kirc.db.models import Channel, Contact, Message, ServiceConfig, ServiceType, UserProfile
 
 
 class DatabaseClient:
@@ -271,6 +271,72 @@ class DatabaseClient:
             )
             return result == "DELETE 1"
 
+    # Channels
+    async def save_channel(self, channel: Channel) -> Channel:
+        """Insert or update a channel."""
+        async with self._pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO channels
+                    (name, description, is_joined, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (name) DO UPDATE SET
+                    description = EXCLUDED.description,
+                    is_joined = EXCLUDED.is_joined,
+                    updated_at = NOW()
+                """,
+                channel.name,
+                channel.description,
+                channel.is_joined,
+                channel.created_at,
+                channel.updated_at,
+            )
+        return channel
+
+    async def get_channel(self, name: str) -> Channel | None:
+        """Get a channel by name."""
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM channels WHERE name = $1",
+                name,
+            )
+            if row:
+                return Channel(
+                    name=row["name"],
+                    description=row["description"],
+                    is_joined=row["is_joined"],
+                    created_at=row["created_at"],
+                    updated_at=row["updated_at"],
+                )
+            return None
+
+    async def get_all_channels(self, joined_only: bool = True) -> list[Channel]:
+        """Get all channels."""
+        async with self._pool.acquire() as conn:
+            if joined_only:
+                rows = await conn.fetch("SELECT * FROM channels WHERE is_joined = TRUE ORDER BY name")
+            else:
+                rows = await conn.fetch("SELECT * FROM channels ORDER BY name")
+            return [
+                Channel(
+                    name=row["name"],
+                    description=row["description"],
+                    is_joined=row["is_joined"],
+                    created_at=row["created_at"],
+                    updated_at=row["updated_at"],
+                )
+                for row in rows
+            ]
+
+    async def delete_channel(self, name: str) -> bool:
+        """Delete a channel."""
+        async with self._pool.acquire() as conn:
+            result = await conn.execute(
+                "DELETE FROM channels WHERE name = $1",
+                name,
+            )
+            return result == "DELETE 1"
+
     # Messages
     async def save_message(self, message: Message) -> Message:
         """Save a message to history."""
@@ -377,12 +443,30 @@ class DatabaseClient:
             # Parse "UPDATE N" to get count
             return int(result.split()[-1]) if result else 0
 
-    async def get_unread_count(self) -> int:
-        """Get count of unread messages."""
+    # Channel Keys
+    async def save_channel_key(self, channel_name: str, key_id: str, encrypted_key: str) -> None:
+        """Save an encrypted channel key."""
         async with self._pool.acquire() as conn:
-            return await conn.fetchval(
-                "SELECT COUNT(*) FROM messages WHERE is_read = FALSE AND is_outbound = FALSE"
+            await conn.execute(
+                """
+                INSERT INTO channel_keys (channel_name, key_id, encrypted_key)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (channel_name, key_id) DO UPDATE SET
+                    encrypted_key = EXCLUDED.encrypted_key
+                """,
+                channel_name,
+                key_id,
+                encrypted_key,
             )
+
+    async def get_channel_keys(self, channel_name: str) -> dict[str, str]:
+        """Get all keys for a channel."""
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT key_id, encrypted_key FROM channel_keys WHERE channel_name = $1",
+                channel_name,
+            )
+            return {row["key_id"]: row["encrypted_key"] for row in rows}
 
     async def __aenter__(self) -> "DatabaseClient":
         await self.connect()

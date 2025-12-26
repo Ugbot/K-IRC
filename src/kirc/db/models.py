@@ -78,6 +78,16 @@ class Contact(BaseModel):
     updated_at: datetime
 
 
+class Channel(BaseModel):
+    """A channel joined by the user."""
+
+    name: str = Field(description="Channel name")
+    description: str | None = None
+    is_joined: bool = True
+    created_at: datetime
+    updated_at: datetime
+
+
 class Message(BaseModel):
     """Persisted message for long-term storage."""
 

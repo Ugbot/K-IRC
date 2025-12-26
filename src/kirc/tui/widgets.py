@@ -52,32 +52,52 @@ class ChannelItem(ListItem):
 class DMItem(ListItem):
     """A widget for a DM in the sidebar."""
     
-    def __init__(self, username: str, status: str = "online") -> None:
+    status = reactive("offline")
+
+    def __init__(self, username: str, status: str = "offline") -> None:
         super().__init__()
         self.username = username
         self.status = status
 
     def compose(self) -> ComposeResult:
-        status_color = "green" if self.status == "online" else "red"
-        yield Label(f"● {self.username}", classes=f"dm-name {status_color}")
+        yield Label(f"● {self.username}", id=f"dm-{self.username}", classes="dm-name")
+
+    def watch_status(self, new_status: str) -> None:
+        """Update color based on status."""
+        try:
+            label = self.query_one(f"#dm-{self.username}", Label)
+            label.remove_class("green", "red", "yellow")
+            color = "green" if new_status == "online" else "red"
+            if new_status == "away": color = "yellow"
+            label.add_class(color)
+        except:
+            pass
 
 
 class NodeList(ListView):
     """Widget displaying available nodes (channels)."""
 
     def compose(self) -> ComposeResult:
-        yield ChannelItem("NET_RUNNERS", is_active=True)
-        yield ChannelItem("BLACK_ICE")
-        yield ChannelItem("GHOST_IN_SHELL")
+        # Start empty, populated by App
+        return []
+
+    async def update_channels(self, channels: list[str], active_channel: str = None):
+        self.clear()
+        for channel in channels:
+            self.append(ChannelItem(channel, is_active=(channel == active_channel)))
 
 
 class DMList(ListView):
     """Widget displaying direct messages."""
     
     def compose(self) -> ComposeResult:
-        yield DMItem("Morpheus", "online")
-        yield DMItem("Trinity", "online")
-        yield DMItem("Neo", "offline")
+        # Start empty, populated by App
+        return []
+
+    async def update_contacts(self, contacts: list[dict]):
+        self.clear()
+        for contact in contacts:
+            self.append(DMItem(contact["username"], contact.get("status", "offline")))
 
 
 class SystemStatus(Static):
@@ -93,12 +113,16 @@ class SystemStatus(Static):
         self.set_interval(1.0, self.update_stats)
 
     def update_stats(self) -> None:
-        """Update fake system stats."""
-        cpu = random.randint(5, 45)
-        mem = random.randint(10, 80)
-        uplink = random.uniform(0.1, 50.0)
+        """Update real system stats."""
+        import psutil
+        cpu = psutil.cpu_percent()
+        mem = psutil.virtual_memory().percent
         
-        self.query_one("#system-stats", Static).update(f"[dim]MEM: {mem}TB | CPU: {cpu}%[/]")
+        # Uplink is harder to measure without tracking throughput, 
+        # so we'll keep it as a small random number or 0 for now.
+        uplink = random.uniform(0.0, 5.0) 
+        
+        self.query_one("#system-stats", Static).update(f"[dim]MEM: {mem}% | CPU: {cpu}%[/]")
         self.query_one("#uplink-stats", Static).update(f"[dim]UPLINK: {uplink:.1f} Kbps[/]")
 
     def set_status(self, status: str, color: str = "green"):
@@ -110,3 +134,20 @@ class ChatInput(Input):
 
     def __init__(self) -> None:
         super().__init__(placeholder=">_ EXECUTE COMMAND OR TRANSMIT...")
+
+
+class TypingIndicator(Static):
+    """Shows who is currently typing."""
+
+    users = reactive(set())
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__("", **kwargs)
+
+    def watch_users(self, users: set[str]) -> None:
+        if not users:
+            self.update("")
+        else:
+            names = ", ".join(sorted(list(users)))
+            suffix = "is typing..." if len(users) == 1 else "are typing..."
+            self.update(f"[dim italic]{names} {suffix}[/]")

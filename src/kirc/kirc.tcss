@@ -200,3 +200,13 @@ ChatMessage {
 .dm-name.red {
     color: $neon-red;
 }
+
+.dm-name.yellow {
+    color: $neon-yellow;
+}
+
+#typing-indicator {
+    height: 1;
+    margin: 0 2;
+    color: $text-dim;
+}

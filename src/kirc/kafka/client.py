@@ -26,9 +26,13 @@ class KafkaClient:
         self,
         bootstrap_servers: str,
         username: str,
-        ssl_cafile: str | Path,
-        ssl_certfile: str | Path,
-        ssl_keyfile: str | Path,
+        security_protocol: str = "SSL",
+        sasl_mechanism: str = "PLAIN",
+        sasl_plain_username: str | None = None,
+        sasl_plain_password: str | None = None,
+        ssl_cafile: str | Path | None = None,
+        ssl_certfile: str | Path | None = None,
+        ssl_keyfile: str | Path | None = None,
         topic_data_in: str = "data-in",
         topic_data_out: str = "data-out",
         topic_rpc_in: str = "rpc-in",
@@ -36,6 +40,11 @@ class KafkaClient:
     ) -> None:
         self.bootstrap_servers = bootstrap_servers
         self.username = username
+        self.security_protocol = security_protocol
+        self.sasl_mechanism = sasl_mechanism
+        self.sasl_plain_username = sasl_plain_username
+        self.sasl_plain_password = sasl_plain_password
+        
         self.topic_data_in = topic_data_in
         self.topic_data_out = topic_data_out
         self.topic_rpc_in = topic_rpc_in
@@ -53,43 +62,48 @@ class KafkaClient:
 
     def _create_ssl_context(
         self,
-        cafile: str | Path,
-        certfile: str | Path,
-        keyfile: str | Path,
-    ) -> ssl.SSLContext:
+        cafile: str | Path | None,
+        certfile: str | Path | None,
+        keyfile: str | Path | None,
+    ) -> ssl.SSLContext | None:
         """Create SSL context for Aiven Kafka connection."""
+        if not cafile:
+            return None
+            
         context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=str(cafile))
-        context.load_cert_chain(certfile=str(certfile), keyfile=str(keyfile))
+        if certfile and keyfile:
+            context.load_cert_chain(certfile=str(certfile), keyfile=str(keyfile))
         context.check_hostname = True
         return context
 
     async def connect(self) -> None:
         """Connect producer and consumers to Kafka."""
-        self._producer = AIOKafkaProducer(
-            bootstrap_servers=self.bootstrap_servers,
-            security_protocol="SSL",
-            ssl_context=self._ssl_context,
-        )
+        common_config = {
+            "bootstrap_servers": self.bootstrap_servers,
+            "security_protocol": self.security_protocol,
+            "ssl_context": self._ssl_context,
+            "sasl_mechanism": self.sasl_mechanism,
+            "sasl_plain_username": self.sasl_plain_username,
+            "sasl_plain_password": self.sasl_plain_password,
+        }
+
+        self._producer = AIOKafkaProducer(**common_config)
         await self._producer.start()
 
         # Main consumer for our own inbox
         self._consumer_data = AIOKafkaConsumer(
             self.topic_data_in,
-            bootstrap_servers=self.bootstrap_servers,
-            security_protocol="SSL",
-            ssl_context=self._ssl_context,
             group_id=f"kirc-{self.username}-data",
             auto_offset_reset="latest",
+            **common_config
         )
         await self._consumer_data.start()
 
         self._consumer_rpc = AIOKafkaConsumer(
             self.topic_rpc_in,
-            bootstrap_servers=self.bootstrap_servers,
-            security_protocol="SSL",
-            ssl_context=self._ssl_context,
             group_id=f"kirc-{self.username}-rpc",
             auto_offset_reset="latest",
+            **common_config
         )
         await self._consumer_rpc.start()
 

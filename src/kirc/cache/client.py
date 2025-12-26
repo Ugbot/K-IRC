@@ -1,11 +1,12 @@
 """Async Valkey/Redis client for pub/sub and caching."""
 
 import asyncio
+import time
 from collections.abc import Callable
 from typing import Any
 
 import msgpack
-import redis.asyncio as redis
+import valkey.asyncio as valkey
 
 
 class CacheClient:
@@ -21,8 +22,8 @@ class CacheClient:
         """Initialize with Valkey/Redis connection URL."""
         self._url = url
         self._username = username
-        self._client: redis.Redis | None = None
-        self._pubsub: redis.client.PubSub | None = None
+        self._client: valkey.Valkey | None = None
+        self._pubsub: valkey.client.PubSub | None = None
         self._running = False
         self._presence_handlers: list[Callable[[str, str], Any]] = []
         self._typing_handlers: list[Callable[[str, str, bool], Any]] = []
@@ -32,7 +33,7 @@ class CacheClient:
 
     async def connect(self) -> None:
         """Connect to Valkey/Redis."""
-        self._client = redis.from_url(self._url, decode_responses=False)
+        self._client = valkey.from_url(self._url, decode_responses=False)
         self._pubsub = self._client.pubsub()
         self._running = True
 
@@ -278,7 +279,7 @@ class CacheClient:
                 "channel": channel,
                 "key_id": key_id,
                 "start_message_id": start_message_id,
-                "timestamp": 0  # TODO: Real timestamp
+                "timestamp": time.time()
             })
         )
 
@@ -406,22 +407,23 @@ class CacheClient:
 
         elif channel.startswith("typing:"):
             # typing:{channel}
-            chan_name = channel.split(":")[1]
-            user, is_typing = data.split(":")
+            chan_name = data.get("channel")
+            user = data.get("username")
+            is_typing = data.get("is_typing", False)
             for handler in self._typing_handlers:
                 if asyncio.iscoroutinefunction(handler):
-                    await handler(chan_name, user, is_typing == "1")
+                    await handler(chan_name, user, is_typing)
                 else:
-                    handler(chan_name, user, is_typing == "1")
+                    handler(chan_name, user, is_typing)
                     
         elif channel.startswith("rotation:"):
             # rotation:{channel}
-            payload = msgpack.unpackb(data)
+            # data is already unpacked dict
             for handler in self._rotation_handlers:
                 if asyncio.iscoroutinefunction(handler):
-                    await handler(payload)
+                    await handler(data)
                 else:
-                    handler(payload)
+                    handler(data)
 
         elif "events" in channel and channel.startswith("channel:"):
             # channel:{channel}:events
@@ -429,12 +431,12 @@ class CacheClient:
             parts = channel.split(":")
             if len(parts) >= 3:
                 chan_name = parts[1]
-                payload = msgpack.unpackb(data)
+                # data is already unpacked dict
                 for handler in self._channel_event_handlers:
                     if asyncio.iscoroutinefunction(handler):
-                        await handler(chan_name, payload)
+                        await handler(chan_name, data)
                     else:
-                        handler(chan_name, payload)
+                        handler(chan_name, data)
 
         elif channel.startswith("notify:"):
             for handler in self._notification_handlers:
